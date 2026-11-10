@@ -1,0 +1,2 @@
+keyboard==0.13.5
+hidapi==0.14.0.post4
