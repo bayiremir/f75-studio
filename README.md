@@ -15,7 +15,16 @@ AULA F75 (ve aslında her klavye) için kendi kurallarını koyabileceğin, Pyth
 
 Ayarlar `%APPDATA%\F75Kontrol\config.json` dosyasına kaydedilir.
 
-## Kurulum (Windows)
+## Kolay kurulum (Windows)
+
+1. Proje klasörünü bilgisayarına indir (ZIP ise klasöre çıkart).
+2. **`kur.bat`** dosyasına çift tıkla.
+
+Betik şunları kendisi yapar: Python yoksa `winget` ile kurar, gerekli paketleri yükler, `F75Kontrol.exe` dosyasını derler, `%LOCALAPPDATA%\Programs\F75Kontrol` klasörüne kopyalar, masaüstü ve Başlat menüsü kısayolu oluşturur, Windows açılışında başlasın mı diye sorar ve uygulamayı açar. Kaldırmak için `kaldir.bat`.
+
+Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çalıştır** de.
+
+## Elle kurulum (Windows)
 
 1. [Python 3.11+](https://www.python.org/downloads/) kur ("Add python.exe to PATH" kutusunu işaretle).
 2. Bu klasörde bir komut istemi aç:
