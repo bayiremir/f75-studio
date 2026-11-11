@@ -23,6 +23,15 @@ if ! gh repo view "$REPO" >/dev/null 2>&1; then
 else
   git remote remove github 2>/dev/null || true
   git remote add github "https://github.com/${REPO}.git"
+  git fetch github
+  # If histories diverged (e.g. Cursor New Project rewrite), put our tree on github/main
+  if ! git merge-base --is-ancestor github/main HEAD 2>/dev/null; then
+    echo "Rebasing local tree onto github/main…"
+    git reset --soft github/main
+    if ! git diff --cached --quiet; then
+      git commit -m "Sync packaging fixes onto GitHub main"
+    fi
+  fi
   git push -u github HEAD:main
 fi
 
