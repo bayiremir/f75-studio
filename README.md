@@ -1,9 +1,27 @@
 # Aula Control
 
-An unofficial Windows app for AULA F75 keyboards.
-Battery, lighting effects, per-key RGB and a live preview.
+Unofficial Windows app for **AULA F75** keyboards — battery, lighting, per-key RGB, live preview.
 
-[Download](#download) · [Features](#features) · [Troubleshooting](#troubleshooting)
+**You do not need Python.** Download the `.exe` and run it.
+
+---
+
+## Download (Windows)
+
+1. Open **[Releases](https://github.com/bayiremir/f75-studio/releases/latest)**
+2. Download **`Aula-Control-Setup.exe`** (installer, no admin)  
+   or **`Aula-Control-Portable.exe`** (no install — double-click)
+3. If Windows SmartScreen appears: **More info → Run anyway** (the app is not code-signed)
+4. No keyboard plugged in? In the app: **Start → Use Demo keyboard**
+
+That’s it. No `pip`, no Python, no terminal.
+
+Direct links (after a release is published):
+
+- [Aula-Control-Setup.exe](https://github.com/bayiremir/f75-studio/releases/latest/download/Aula-Control-Setup.exe)
+- [Aula-Control-Portable.exe](https://github.com/bayiremir/f75-studio/releases/latest/download/Aula-Control-Portable.exe)
+
+If the Releases page is empty, the Windows build has not been published yet — see [Publishing a release](#publishing-a-release) below (maintainers only).
 
 ---
 
@@ -13,33 +31,9 @@ I made this app for myself because AULA's official software is bad and its UI is
 
 I don't even know coding, so use it at your own risk, or leave if you have any issue. It was made with the help of AI. If you have a personal problem with that, you're free to leave. I'm not earning anything from it, so I don't need to worry about it. I just want to share.
 
-**Tested only on the AULA F75.** Every other model (F75 Pro, F87, F75 Max) is untested, so I don't know if it works. If you get an error, comment on the release.
+**Tested only on the AULA F75.** Every other model (F75 Pro, F87, F75 Max) is untested. If you get an error, comment on the release.
 
 **Not affiliated with AULA.**
-
----
-
-## Download
-
-Get **`Aula-Control-Setup.exe`** from [Releases](https://github.com/bayiremir/f75-studio/releases) and run it. No admin needed. A portable **`Aula-Control-Portable.exe`** is there too.
-
-Windows may warn about an unknown publisher because the app isn't code-signed: choose **More info → Run anyway**. No keyboard? Try **Start → Use Demo keyboard**.
-
-### Build from source (Windows)
-
-```bat
-pip install -r requirements.txt
-python main.py
-```
-
-To make the same files GitHub Actions publishes:
-
-```bat
-pip install -r requirements.txt pyinstaller==6.11.1
-python -m PyInstaller --noconfirm AulaControl.spec
-```
-
-Then open `installer\aula-control.iss` in [Inno Setup](https://jrsoftware.org/isinfo.php) to produce `Aula-Control-Setup.exe`. Or push a `v*` tag and let the Release workflow build both.
 
 ---
 
@@ -56,18 +50,53 @@ Then open `installer\aula-control.iss` in [Inno Setup](https://jrsoftware.org/is
 
 ---
 
-## Screenshots
-
-Run the app and open **Lighting** or **Per-key**. With no keyboard plugged in, choose **Demo keyboard** on the Start page — that is the same UI people see in the screenshots.
-
----
-
 ## Troubleshooting
 
 - Close the official AULA driver. Only one program can use the keyboard at a time.
 - Lighting works over the **2.4G dongle** (best) or **USB-C cable**. Bluetooth support is limited.
 - If Windows Defender or SmartScreen blocks the download, that is because the exe is not code-signed — use **More info → Run anyway**.
 - Still stuck? Open an issue on the release and say whether you used the dongle, cable or demo.
+
+---
+
+## Publishing a release
+
+Maintainers: GitHub Actions builds both exes on a Windows runner and attaches them to the Release. Users never run `pip`.
+
+**Option A — new version tag**
+
+```bat
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+**Option B — Actions UI**
+
+1. Open the repo → **Actions** → enable workflows if asked
+2. Select workflow **Release** → **Run workflow**
+3. Enter a tag like `v0.1.1` → Run
+4. When it finishes, open **Releases** — Setup + Portable exes are attached
+
+Local one-click build on a Windows PC (optional, for testing):
+
+```bat
+build_windows.bat
+```
+
+Output: `dist\Aula-Control-Portable.exe` and, if [Inno Setup](https://jrsoftware.org/isinfo.php) is installed, `dist\Aula-Control-Setup.exe`.
+
+---
+
+## For developers (source only)
+
+Normal users should ignore this section.
+
+```bat
+pip install -r requirements.txt
+python main.py
+```
+
+Tests: `pytest -q`
 
 ---
 

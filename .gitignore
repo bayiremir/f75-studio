@@ -9,3 +9,5 @@ release/
 .pytest_cache/
 *.egg-info/
 .DS_Store
+agent-tools/
+.cursor/

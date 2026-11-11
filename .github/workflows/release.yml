@@ -1,23 +1,79 @@
 name: Release
 
+# Builds Aula-Control-Setup.exe + Aula-Control-Portable.exe on Windows and
+# attaches them to a GitHub Release. End users download the exe — no Python.
+#
+# Triggers:
+#   - push a version tag:   git tag v0.1.1 && git push origin v0.1.1
+#   - Actions → Release → Run workflow (re-publish / create a tag)
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Version tag to build (e.g. v0.1.0)"
+        description: "Version tag to build and publish (e.g. v0.1.1)"
+        required: true
+        default: "v0.1.1"
+      create_tag:
+        description: "Create the tag on this commit if it does not exist"
+        type: boolean
         required: false
-        default: "v0.1.0-dev"
+        default: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   windows:
     runs-on: windows-latest
     steps:
+      - name: Resolve version tag
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          TAG="${TAG#v}"
+          TAG="v${TAG}"
+          VER="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Building release $TAG ($VER)"
+
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure tag exists (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.ver.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists → $(git rev-list -n1 "$TAG")"
+            git checkout --force "tags/$TAG"
+          else
+            if [[ "${{ inputs.create_tag }}" != "true" ]]; then
+              echo "::error::Tag $TAG does not exist and create_tag is false"
+              exit 1
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "refs/tags/$TAG"
+            echo "Created and pushed $TAG"
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -29,7 +85,7 @@ jobs:
           pip install -r requirements.txt pyinstaller==6.11.1 pytest
           python -m pytest -q
 
-      - name: Build portable exe
+      - name: Build portable exe (PyInstaller)
         run: python -m PyInstaller --noconfirm AulaControl.spec
 
       - name: Install Inno Setup
@@ -38,37 +94,51 @@ jobs:
       - name: Sync version into Inno script
         shell: bash
         run: |
-          VER="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VER="${{ inputs.tag }}"; VER="${VER#v}"; fi
+          VER="${{ steps.ver.outputs.version }}"
           sed -i "s/#define MyAppVersion \".*\"/#define MyAppVersion \"$VER\"/" installer/aula-control.iss
-          echo "VERSION=$VER" >> "$GITHUB_ENV"
+          grep 'MyAppVersion' installer/aula-control.iss
 
-      - name: Compile installer
+      - name: Compile installer (Inno Setup)
         run: |
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer\aula-control.iss
 
-      - name: Rename portable artifact
+      - name: Stage release files
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p release
-          cp dist/Aula-Control-Portable.exe "release/Aula-Control-Portable.exe"
-          cp dist/Aula-Control-Setup.exe "release/Aula-Control-Setup.exe"
-          ls -la release
+          test -f dist/Aula-Control-Portable.exe
+          test -f dist/Aula-Control-Setup.exe
+          cp dist/Aula-Control-Portable.exe release/Aula-Control-Portable.exe
+          cp dist/Aula-Control-Setup.exe release/Aula-Control-Setup.exe
+          ls -lah release
+          echo "### Windows builds ready" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`Aula-Control-Setup.exe\` — installer (no admin)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`Aula-Control-Portable.exe\` — double-click, no install" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Attached to release **${{ steps.ver.outputs.tag }}**." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aula-control-windows
+          name: aula-control-windows-${{ steps.ver.outputs.version }}
           path: release/*
+          if-no-files-found: error
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish GitHub Release with exes
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Aula Control ${{ steps.ver.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
           files: |
             release/Aula-Control-Setup.exe
             release/Aula-Control-Portable.exe
-          body_path: RELEASE_NOTES.md
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

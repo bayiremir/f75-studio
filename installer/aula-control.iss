@@ -1,6 +1,6 @@
 ; Inno Setup script — current-user install, no admin required.
 #define MyAppName "Aula Control"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "Aula Control (unofficial)"
 #define MyAppURL "https://github.com/bayiremir/f75-studio"
 #define MyAppExeName "Aula-Control-Portable.exe"

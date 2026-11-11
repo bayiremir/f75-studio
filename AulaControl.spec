@@ -37,7 +37,8 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX packing often triggers Windows Defender false positives on unsigned builds.
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
