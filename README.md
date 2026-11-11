@@ -1,113 +1,63 @@
-# Aula Control
+# AULA F75 Studio
 
-Unofficial Windows app for **AULA F75** keyboards — battery, lighting, per-key RGB, live preview.
+AULA F75 klavye için 85 yeni RGB animasyonu, canlı önizleme ve donanım kontrolü sunan Windows uygulaması.
 
-**You do not need Python.** Download the `.exe` and run it.
+## İndir
 
----
+[Releases](https://github.com/bayiremir/f75-studio/releases/latest) sayfasından:
 
-## Download (Windows)
+- **AULA-F75-Studio-Setup-x.x.x.exe** – kurulum (masaüstü ve Başlat menüsü kısayolu)
+- **AULA-F75-Studio-Portable-x.x.x.exe** – kurulum gerektirmez
 
-1. Open **[Releases](https://github.com/bayiremir/f75-studio/releases/latest)**
-2. Download **`Aula-Control-Setup.exe`** (installer, no admin)  
-   or **`Aula-Control-Portable.exe`** (no install — double-click)
-3. If Windows SmartScreen appears: **More info → Run anyway** (the app is not code-signed)
-4. No keyboard plugged in? In the app: **Start → Use Demo keyboard**
+Uygulama imzasız olduğu için Windows "kişisel bilgisayarınızı korudu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**.
 
-That’s it. No `pip`, no Python, no terminal.
+## Özellikler
 
-Direct links (after a release is published):
+- **85 yazılım animasyonu**, 7 kategori: Nabız & Ritim, Dalga & Akış, Doğa, Uzay & Işık, Retro & Dijital, Tuşa Tepki, Müzik
+  (Kalp Atışı, EKG, Ateş, Matrix, Tetris, Yılan Oyunu, Havai Fişek, Kuzey Işıkları, Isı Haritası, Ses Spektrumu…)
+- Her efekt için hız, parlaklık, renk paleti, renkler ve efekte özel ayarlar
+- **Tuşa tepki** efektleri hangi programda olursan ol bastığın tuşlara cevap verir
+- **Müzik** efektleri bilgisayardan çıkan sese göre oynar
+- **Donanım efektleri**: klavyenin kendi 15 efekti, istediğin RGB renk ile – klavyeye kaydedilir
+- **Tuş boyama**: tuş tuş renk verip klavye hafızasına kaydetme, hazır temalar
+- **Cihaz ayarları**: uyku süresi, yan ışık şeridi, düğme modu, Windows tuşu kilidi, işletim sistemi modu
+- Sistem tepsisinde çalışma ve Windows açılışında otomatik başlama
 
-- [Aula-Control-Setup.exe](https://github.com/bayiremir/f75-studio/releases/latest/download/Aula-Control-Setup.exe)
-- [Aula-Control-Portable.exe](https://github.com/bayiremir/f75-studio/releases/latest/download/Aula-Control-Portable.exe)
+## Bağlantı
 
-If the Releases page is empty, the Windows build has not been published yet — see [Publishing a release](#publishing-a-release) below (maintainers only).
+| Mod | Durum |
+|---|---|
+| 2.4 GHz alıcı (3554:FA09) | Destekleniyor, ~14 FPS canlı animasyon |
+| USB-C kablo (258A:010C) | Destekleniyor, 30 FPS'e kadar |
+| Bluetooth | Klavye ayar kabul etmiyor; 2.4G veya kabloya geç |
 
----
+Yeni animasyonlar klavyenin çipine yüklenemez; bilgisayarda hesaplanıp klavyeye gerçek zamanlı gönderilir. Bu yüzden
+uygulamanın (tepside de olsa) açık olması gerekir. Uygulamadan çıkınca klavye seçtiğin donanım efektine döner.
+Donanım efektleri ve tuş boyama ise klavyenin hafızasına kaydedilir.
 
-## Read this first
+AULA'nın orijinal sürücüsüyle aynı anda çalıştırmayın.
 
-I made this app for myself because AULA's official software is bad and its UI is terrible. I'm sharing it for anyone who wants to try it. It's free, and you use it on your own.
+## Geliştirme
 
-I don't even know coding, so use it at your own risk, or leave if you have any issue. It was made with the help of AI. If you have a personal problem with that, you're free to leave. I'm not earning anything from it, so I don't need to worry about it. I just want to share.
+Gereksinim: Node.js 20+
 
-**Tested only on the AULA F75.** Every other model (F75 Pro, F87, F75 Max) is untested. If you get an error, comment on the release.
-
-**Not affiliated with AULA.**
-
----
-
-## Features
-
-- Battery level over the 2.4G dongle (USB-C cable alone usually reports no level)
-- 15+ lighting effects with brightness, speed and colour
-- Per-key RGB painter and presets
-- Live preview of the F75 as a rendered picture, with a **Live / Picture** switch
-- Key assignment (experimental) — changes are sent only when you press Apply
-- Dark and light themes
-- Start with Windows
-- Demo keyboard so you can try the app without hardware
-
----
-
-## Troubleshooting
-
-- Close the official AULA driver. Only one program can use the keyboard at a time.
-- Lighting works over the **2.4G dongle** (best) or **USB-C cable**. Bluetooth support is limited.
-- If Windows Defender or SmartScreen blocks the download, that is because the exe is not code-signed — use **More info → Run anyway**.
-- Still stuck? Open an issue on the release and say whether you used the dongle, cable or demo.
-
----
-
-## Publishing a release
-
-Maintainers: GitHub Actions builds both exes on a Windows runner and attaches them to the Release. Users never run `pip`.
-
-**Option A — new version tag**
-
-```bat
-git tag v0.1.1
-git push origin v0.1.1
+```bash
+npm install
+npm start        # derle ve çalıştır
+npm run dist     # release/ klasörüne kurulum + portable exe üretir
 ```
 
-**Option B — Actions UI**
+Yapı:
 
-1. Open the repo → **Actions** → enable workflows if asked
-2. Select workflow **Release** → **Run workflow**
-3. Enter a tag like `v0.1.1` → Run
-4. When it finishes, open **Releases** — Setup + Portable exes are attached
+- `src/core/effects` – animasyonlar
+- `src/core/engine.ts` – animasyon motoru
+- `src/core/device.ts` – WebHID üzerinden klavye sürücüsü (2.4G ve kablo protokolleri)
+- `src/components` – arayüz (React)
+- `electron` – pencere, sistem tepsisi, global tuş dinleme
 
-Local one-click build on a Windows PC (optional, for testing):
+## Teşekkür
 
-```bat
-build_windows.bat
-```
+Protokol, resmi sürücünün tersine mühendisliğiyle çıkarılmış şu açık kaynak çalışmalara dayanır:
+[aula-f75-hub](https://github.com/bakiakyol/aula-f75-hub), [aula-f75-linux](https://github.com/trenbolone1122/aula-f75-linux).
 
-Output: `dist\Aula-Control-Portable.exe` and, if [Inno Setup](https://jrsoftware.org/isinfo.php) is installed, `dist\Aula-Control-Setup.exe`.
-
----
-
-## For developers (source only)
-
-Normal users should ignore this section.
-
-```bat
-pip install -r requirements.txt
-python main.py
-```
-
-Tests: `pytest -q`
-
----
-
-## Protocol
-
-The app talks to the keyboard over its vendor HID channel. The packet layout and command IDs come from public reverse-engineering of AULA's Windows driver (see community write-ups for the F75). Demo mode keeps everything in memory and never opens a device.
-
----
-
-## License
-
-MIT. Not affiliated with, endorsed by, or supported by AULA. "AULA" is used only to name the hardware this app works with.
-
-Made with the help of AI.
+AULA ile bağlantılı değildir.
