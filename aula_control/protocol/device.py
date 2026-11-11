@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from . import packet
 from .effects import EFFECT_PER_KEY
@@ -155,12 +156,12 @@ class Keyboard:
                 self._wait_ack(cmd, pkt[3])
             time.sleep(delay_ms / 1000.0)
 
-    def _wait_ack(self, cmd: int, index: int, tries: int = 20) -> None:
+    def _wait_ack(self, cmd: int, index: int, tries: int = 8) -> None:
         if self.demo:
             self.transport.read()
             return
         for _ in range(tries):
-            reply = self.transport.read(64, 200)
+            reply = self.transport.read(64, 80)
             if not reply:
                 continue
             parsed = packet.parse_reply(reply)
@@ -173,7 +174,15 @@ class Keyboard:
                 return
         # Soft-fail: some hosts drop acks; settings often still apply.
 
-    def _wireless_read(self, cmd: int, sub: int, expected: int) -> bytes:
+    def _wireless_read(
+        self,
+        cmd: int,
+        sub: int,
+        expected: int,
+        *,
+        attempts: int = 4,
+        window_s: float = 0.6,
+    ) -> bytes:
         if self.demo:
             if cmd == 0x04:
                 return bytes(self.transport.led)  # type: ignore[attr-defined]
@@ -185,11 +194,11 @@ class Keyboard:
                 return bytes([self.transport.battery, 0])  # type: ignore[attr-defined]
             return b"\x00" * expected
         collected: list[bytes] = []
-        for attempt in range(8):
+        for attempt in range(max(1, attempts)):
             self.transport.write(packet.build_read_request(cmd, sub))
-            deadline = time.time() + 1.5
+            deadline = time.time() + window_s
             while time.time() < deadline:
-                reply = self.transport.read(64, 100)
+                reply = self.transport.read(64, 50)
                 if not reply:
                     continue
                 parsed = packet.parse_reply(reply)
@@ -199,11 +208,12 @@ class Keyboard:
                 if (rcmd & 0x7F) != (cmd & 0x7F):
                     continue
                 collected.append(reply)
-                if len({packet.parse_reply(p)[2] for p in collected if packet.parse_reply(p)}) >= total:
+                indexes = {packet.parse_reply(p)[2] for p in collected if packet.parse_reply(p)}
+                if len(indexes) >= total:
                     data = packet.reassemble(collected)
                     if len(data) >= expected:
                         return data[:expected]
-            time.sleep(0.05 + attempt * 0.02)
+            time.sleep(0.02 + attempt * 0.01)
         return packet.reassemble(collected)[:expected]
 
     # ---- wired feature reports ----
@@ -323,7 +333,8 @@ class Keyboard:
             t = self.transport
             return int(t.battery), bool(t.charging)  # type: ignore[attr-defined]
         try:
-            raw = self._wireless_read(0x0A, 0, 2)
+            # Keep this short — it is polled from the UI and must not hang.
+            raw = self._wireless_read(0x0A, 0, 2, attempts=2, window_s=0.35)
             if not raw:
                 return None, False
             return int(raw[0]), False
@@ -331,7 +342,8 @@ class Keyboard:
             return None, False
 
 
-def find_devices() -> list[DeviceInfo]:
+def _enumerate_devices() -> list[DeviceInfo]:
+    """Blocking HID scan. Prefer find_devices() which applies a timeout."""
     devices: list[DeviceInfo] = []
     try:
         import hid  # type: ignore
@@ -352,12 +364,9 @@ def find_devices() -> list[DeviceInfo]:
             continue
         usage_page = e.get("usage_page", 0)
         interface = e.get("interface_number", -1)
-        # Prefer vendor interfaces
+        # Prefer vendor interfaces for the wired bridge
         if (vid, pid) == WIRED and usage_page not in (0xFF00, 0xFF02) and interface not in (1, 2):
             continue
-        if (vid, pid) in (WIRELESS, BLUETOOTH) and usage_page not in (0xFF02, 0xFF00) and interface not in (1,):
-            # Still accept if it's the only match for this path family
-            pass
         kind = "wired" if (vid, pid) == WIRED else "bluetooth" if (vid, pid) == BLUETOOTH else "wireless"
         seen.add(path_s)
         devices.append(
@@ -365,6 +374,7 @@ def find_devices() -> list[DeviceInfo]:
                 vendor_id=vid,
                 product_id=pid,
                 path=path_s,
+                # String descriptors can be slow/empty on Windows — never block on them.
                 product=e.get("product_string") or "",
                 manufacturer=e.get("manufacturer_string") or "",
                 kind=kind,
@@ -374,19 +384,64 @@ def find_devices() -> list[DeviceInfo]:
     return devices
 
 
-def open_device(info: DeviceInfo | None = None) -> Keyboard:
+def find_devices(timeout_s: float = 4.0) -> list[DeviceInfo]:
+    """Scan for AULA devices without hanging the caller forever.
+
+    hidapi's enumerate() can stall on Windows when a device ignores string
+    descriptor requests. Run it in a daemon thread and give up after timeout_s.
+    """
+    box: list[list[DeviceInfo]] = []
+    err: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            box.append(_enumerate_devices())
+        except BaseException as exc:  # noqa: BLE001
+            err.append(exc)
+
+    thread = threading.Thread(target=worker, name="aula-hid-enumerate", daemon=True)
+    thread.start()
+    thread.join(timeout=max(0.5, timeout_s))
+    if thread.is_alive():
+        # Thread is daemon — abandoned; UI continues with an empty list / demo.
+        return []
+    if err:
+        return []
+    return box[0] if box else []
+
+
+def open_device(info: DeviceInfo | None = None, timeout_s: float = 5.0) -> Keyboard:
     if info is None or info.kind == "demo":
         demo = DeviceInfo(0, 0, "demo", "Demo keyboard", "Aula Control", "demo")
         return Keyboard(demo, DemoTransport())
-    import hid  # type: ignore
 
-    dev = hid.device()
-    path = info.path.encode() if isinstance(info.path, str) else info.path
-    try:
-        dev.open_path(path)
-    except Exception:
-        dev.open(info.vendor_id, info.product_id)
-    return Keyboard(info, HidTransport(dev))
+    box: list[Keyboard] = []
+    err: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            import hid  # type: ignore
+
+            dev = hid.device()
+            path = info.path.encode() if isinstance(info.path, str) else info.path
+            try:
+                dev.open_path(path)
+            except Exception:
+                dev.open(info.vendor_id, info.product_id)
+            box.append(Keyboard(info, HidTransport(dev)))
+        except BaseException as exc:  # noqa: BLE001
+            err.append(exc)
+
+    thread = threading.Thread(target=worker, name="aula-hid-open", daemon=True)
+    thread.start()
+    thread.join(timeout=max(0.5, timeout_s))
+    if thread.is_alive():
+        raise TimeoutError("Opening the keyboard timed out. Close the official AULA software and try again.")
+    if err:
+        raise err[0]
+    if not box:
+        raise RuntimeError("Could not open the keyboard.")
+    return box[0]
 
 
 def close_device(kb: Keyboard | None) -> None:

@@ -1,5 +1,8 @@
+import time
+
 from aula_control.protocol import packet
-from aula_control.protocol.device import DemoTransport, demo_info, open_device
+from aula_control.protocol import device as device_mod
+from aula_control.protocol.device import DemoTransport, demo_info, find_devices, open_device
 from aula_control.protocol.effects import EFFECT_PER_KEY
 
 
@@ -41,3 +44,21 @@ def test_demo_transport_acks():
     pkt = packet.build_write(0x04, 0, b"\xff", 0, 1)
     t.write(pkt)
     assert t.read() == pkt
+
+
+def test_find_devices_timeout_does_not_hang(monkeypatch):
+    def stuck():
+        time.sleep(30)
+        return []
+
+    monkeypatch.setattr(device_mod, "_enumerate_devices", stuck)
+    started = time.time()
+    assert find_devices(timeout_s=0.6) == []
+    assert time.time() - started < 3.0
+
+
+def test_open_demo_is_instant():
+    kb = open_device(demo_info())
+    assert kb.demo
+    assert kb.read_battery()[0] == 76
+    kb.close()

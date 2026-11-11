@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO="${GITHUB_REPO:-bayiremir/f75-studio}"
-TAG="${1:-v0.1.1}"
+TAG="${1:-v0.1.2}"
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "Install GitHub CLI: https://cli.github.com/"

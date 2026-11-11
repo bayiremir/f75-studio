@@ -1,13 +1,19 @@
-# Aula Control 0.1.1
+# Aula Control 0.1.2
 
 ## Download
 
-Use these files — **no Python / pip needed**:
+**No Python / pip needed:**
 
-- **Aula-Control-Setup.exe** — installer (no admin rights)
+- **Aula-Control-Setup.exe** — installer (no admin)
 - **Aula-Control-Portable.exe** — double-click to run
 
-Windows SmartScreen may warn (unsigned build): **More info → Run anyway**.
+Windows SmartScreen may warn (unsigned): **More info → Run anyway**.
+
+## Fix
+
+- App no longer freezes on “Looking for a keyboard…”
+- HID scan, open and battery reads run in the background with timeouts
+- If no keyboard is found (or the scan stalls), Demo mode still works
 
 ## What's included
 
@@ -15,5 +21,4 @@ Windows SmartScreen may warn (unsigned build): **More info → Run anyway**.
 - Per-key RGB painter with live F75 preview
 - Demo keyboard when no hardware is connected
 - Battery read-out over the 2.4G dongle
-- Experimental on-keyboard key assignment
-- Dark / light themes, Start with Windows
+- Experimental key assignment, themes, Start with Windows

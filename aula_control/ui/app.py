@@ -48,13 +48,18 @@ class AulaControlApp(tk.Tk):
         self.keyboard: Keyboard | None = None
         self.devices = []
         self._busy = False
+        self._scanning = False
+        self._connecting = False
+        self._battery_busy = False
+        self._closed = False
         self._paint = (255, 80, 80)
         self._per_key = {k.index: (30, 34, 42) for k in KEYS}
         self._status = tk.StringVar(value="Looking for a keyboard…")
         self._battery = tk.StringVar(value="Battery: —")
         self._build()
-        self.after(100, self.refresh_devices)
-        self.after(2000, self._poll_battery)
+        # Never call HID on the UI thread — Windows hidapi can freeze the window.
+        self.after(80, self.refresh_devices)
+        self.after(2500, self._poll_battery)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         if start_tray:
             self.after(300, self.withdraw)
@@ -293,8 +298,35 @@ class AulaControlApp(tk.Tk):
         return page
 
     # ---------- device ----------
+    def _ui(self, fn: Callable[[], None]) -> None:
+        """Marshal a callback back onto the Tk thread if the window is alive."""
+        if self._closed:
+            return
+        try:
+            self.after(0, fn)
+        except tk.TclError:
+            pass
+
     def refresh_devices(self):
-        self.devices = find_devices()
+        if self._scanning or self._closed:
+            return
+        self._scanning = True
+        self._status.set("Looking for a keyboard…")
+
+        def work():
+            try:
+                devices = find_devices(timeout_s=4.0)
+            except Exception:  # noqa: BLE001
+                devices = []
+            self._ui(lambda: self._on_devices_found(devices))
+
+        threading.Thread(target=work, name="aula-scan", daemon=True).start()
+
+    def _on_devices_found(self, devices):
+        self._scanning = False
+        if self._closed:
+            return
+        self.devices = devices
         labels = [d.label for d in self.devices] + ["Demo keyboard"]
         self.device_box["values"] = labels
         self.home_list.delete(0, "end")
@@ -306,7 +338,7 @@ class AulaControlApp(tk.Tk):
             self.connect_selected()
         else:
             self.device_var.set("Demo keyboard")
-            self._status.set("No keyboard found — using demo, or plug in the 2.4G dongle / USB-C cable.")
+            self._status.set("No keyboard found — using demo. Plug in the 2.4G dongle / USB-C and hit Refresh.")
             if not self.keyboard:
                 self.use_demo()
 
@@ -325,16 +357,55 @@ class AulaControlApp(tk.Tk):
         self._connect(demo_info())
 
     def _connect(self, info):
-        try:
-            if self.keyboard:
-                self.keyboard.close()
-            self.keyboard = open_device(info)
-            self._status.set(f"Connected: {self.keyboard.info.label}")
-            self._poll_battery()
-            self._preview_effect()
-        except Exception as exc:  # noqa: BLE001
-            self._status.set(f"Could not open device: {exc}")
-            messagebox.showerror("Connection", str(exc))
+        if self._connecting or self._closed:
+            return
+        self._connecting = True
+        self._status.set(f"Opening {info.label}…")
+
+        def work():
+            old = self.keyboard
+            self.keyboard = None
+            try:
+                if old:
+                    try:
+                        old.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                kb = open_device(info, timeout_s=5.0)
+            except Exception as exc:  # noqa: BLE001
+                self._ui(lambda: self._on_connect_fail(exc))
+                return
+            self._ui(lambda: self._on_connected(kb))
+
+        threading.Thread(target=work, name="aula-connect", daemon=True).start()
+
+    def _on_connected(self, kb: Keyboard):
+        self._connecting = False
+        if self._closed:
+            try:
+                kb.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        self.keyboard = kb
+        self._status.set(f"Connected: {kb.info.label}")
+        self._preview_effect()
+        self._poll_battery(force=True)
+
+    def _on_connect_fail(self, exc: BaseException):
+        self._connecting = False
+        if self._closed:
+            return
+        self._status.set(f"Could not open device: {exc}")
+        # Fall back to demo so the UI stays usable.
+        if not self.keyboard or self.keyboard.info.kind != "demo":
+            try:
+                self.keyboard = open_device(demo_info())
+                self.device_var.set("Demo keyboard")
+                self._status.set(f"Could not open device ({exc}). Using demo keyboard.")
+            except Exception:  # noqa: BLE001
+                pass
+        messagebox.showerror("Connection", str(exc))
 
     # ---------- lighting ----------
     def _effect_id(self) -> int:
@@ -474,24 +545,44 @@ class AulaControlApp(tk.Tk):
         threading.Thread(target=work, daemon=True).start()
 
     # ---------- battery / settings ----------
-    def _poll_battery(self):
-        if self.keyboard:
-            try:
-                level, charging = self.keyboard.read_battery()
-                if level is None:
-                    self._battery.set("Battery: n/a (cable)")
-                    self.battery_big.set("n/a")
-                    self.battery_note.set("This connection does not report a battery level.")
+    def _poll_battery(self, force: bool = False):
+        if self._closed:
+            return
+        kb = self.keyboard
+        if kb and (force or not self._battery_busy):
+            self._battery_busy = True
+
+            def work(keyboard=kb):
+                try:
+                    level, charging = keyboard.read_battery()
+                except Exception:  # noqa: BLE001
+                    level, charging = None, False
+                    failed = True
                 else:
-                    tag = " · charging" if charging else ""
-                    self._battery.set(f"Battery: {level}%{tag}")
-                    self.battery_big.set(f"{level}%")
-                    self.battery_note.set("Charging over cable." if charging else "Read from the keyboard.")
-                    if level <= self.settings.low_battery_alert and not charging:
-                        self.preview.fill_all((180, 30, 30))
-            except Exception:
-                pass
-        self.after(15000, self._poll_battery)
+                    failed = False
+                self._ui(lambda: self._on_battery(level, charging, failed))
+
+            threading.Thread(target=work, name="aula-battery", daemon=True).start()
+        if not force:
+            self.after(15000, self._poll_battery)
+
+    def _on_battery(self, level: int | None, charging: bool, failed: bool):
+        self._battery_busy = False
+        if self._closed:
+            return
+        if failed:
+            return
+        if level is None:
+            self._battery.set("Battery: n/a (cable)")
+            self.battery_big.set("n/a")
+            self.battery_note.set("This connection does not report a battery level.")
+        else:
+            tag = " · charging" if charging else ""
+            self._battery.set(f"Battery: {level}%{tag}")
+            self.battery_big.set(f"{level}%")
+            self.battery_note.set("Charging over cable." if charging else "Read from the keyboard.")
+            if level <= self.settings.low_battery_alert and not charging and hasattr(self, "preview"):
+                self.preview.fill_all((180, 30, 30))
 
     def _save_settings(self):
         self.settings.theme = self.theme_var.get()
@@ -506,9 +597,22 @@ class AulaControlApp(tk.Tk):
             messagebox.showwarning("Startup", err)
 
     def _on_close(self):
-        if self.keyboard:
-            self.keyboard.close()
-        self.destroy()
+        self._closed = True
+        kb = self.keyboard
+        self.keyboard = None
+
+        def work():
+            if kb:
+                try:
+                    kb.close()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        threading.Thread(target=work, name="aula-close", daemon=True).start()
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
 
 
 def run_app(start_tray: bool = False) -> None:
