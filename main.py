@@ -1,19 +1,22 @@
-from f75kontrol.ui import App
+import argparse
+import sys
 
 
-def main():
-    keyboard, error = None, None
-    try:
-        import keyboard as kb  # type: ignore
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Aula Control — unofficial AULA F75 app")
+    parser.add_argument("--tray", action="store_true", help="Start hidden (used by Start with Windows)")
+    parser.add_argument("--version", action="store_true")
+    args = parser.parse_args(argv)
+    if args.version:
+        from aula_control import __version__
 
-        kb.is_pressed("shift")  # fails early on Linux without root
-        keyboard = kb
-    except ImportError:
-        error = "'keyboard' paketi kurulu değil: pip install -r requirements.txt"
-    except Exception as exc:  # noqa: BLE001
-        error = f"Klavye dinlenemiyor: {exc}"
-    App(keyboard, error).mainloop()
+        print(__version__)
+        return 0
+    from aula_control.ui import run_app
+
+    run_app(start_tray=args.tray)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

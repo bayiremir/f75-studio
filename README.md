@@ -1,70 +1,84 @@
-# F75 Kontrol
+# Aula Control
 
-AULA F75 (ve aslında her klavye) için kendi kurallarını koyabileceğin, Python ile yazılmış küçük bir Windows uygulaması. AULA'nın kendi yazılımının yanında çalışır, onun yerine geçmez.
+An unofficial Windows app for AULA F75 keyboards.
+Battery, lighting effects, per-key RGB and a live preview.
 
-## Neler yapabiliyor
+[Download](#download) · [Features](#features) · [Troubleshooting](#troubleshooting)
 
-- **Kısayollar & Makrolar:** Bir tuş kombinasyonuna (ör. `ctrl+alt+n`) şu eylemlerden birini bağlarsın:
-  - metin yazdırma (hazır mesajlar, imza, e-posta adresi…)
-  - başka bir tuş kombinasyonu gönderme (ör. `play/pause media`, `ctrl+shift+esc`)
-  - program veya dosya açma
-  - web adresi açma
-  - `cmd` komutu çalıştırma
-- **Tuş Atama:** Bir tuşu başka bir tuş gibi davrandırır (ör. `caps lock` → `esc`).
-- **Klavye (HID):** Bilgisayara bağlı USB HID cihazlarını listeler ve AULA klavyeye ait olabilecek arayüzleri işaretler. Işık (RGB) kontrolü yazmak istersen ilk adım bu olur.
+---
 
-Ayarlar `%APPDATA%\F75Kontrol\config.json` dosyasına kaydedilir.
+## Read this first
 
-## Kolay kurulum (Windows)
+I made this app for myself because AULA's official software is bad and its UI is terrible. I'm sharing it for anyone who wants to try it. It's free, and you use it on your own.
 
-1. Proje klasörünü bilgisayarına indir (ZIP ise klasöre çıkart).
-2. **`kur.bat`** dosyasına çift tıkla.
+I don't even know coding, so use it at your own risk, or leave if you have any issue. It was made with the help of AI. If you have a personal problem with that, you're free to leave. I'm not earning anything from it, so I don't need to worry about it. I just want to share.
 
-Betik şunları kendisi yapar: Python yoksa `winget` ile kurar, gerekli paketleri yükler, `F75Kontrol.exe` dosyasını derler, `%LOCALAPPDATA%\Programs\F75Kontrol` klasörüne kopyalar, masaüstü ve Başlat menüsü kısayolu oluşturur, Windows açılışında başlasın mı diye sorar ve uygulamayı açar. Kaldırmak için `kaldir.bat`.
+**Tested only on the AULA F75.** Every other model (F75 Pro, F87, F75 Max) is untested, so I don't know if it works. If you get an error, comment on the release.
 
-Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çalıştır** de.
+**Not affiliated with AULA.**
 
-## Elle kurulum (Windows)
+---
 
-1. [Python 3.11+](https://www.python.org/downloads/) kur ("Add python.exe to PATH" kutusunu işaretle).
-2. Bu klasörde bir komut istemi aç:
+## Download
+
+Get **`Aula-Control-Setup.exe`** from [Releases](../../releases) and run it. No admin needed. A portable **`Aula-Control-Portable.exe`** is there too.
+
+Windows may warn about an unknown publisher because the app isn't code-signed: choose **More info → Run anyway**. No keyboard? Try **Start → Use Demo keyboard**.
+
+### Build from source (Windows)
 
 ```bat
 pip install -r requirements.txt
 python main.py
 ```
 
-3. Üstteki **Etkinleştir** düğmesine bas. Kısayollar o andan itibaren her uygulamada çalışır.
-
-> Bazı programlar (yönetici olarak çalışan oyunlar, Görev Yöneticisi) içinde kısayolların çalışması için F75 Kontrol'ü de "Yönetici olarak çalıştır" ile açman gerekebilir.
-
-### Tek dosya `.exe` yapmak
+To make the same files GitHub Actions publishes:
 
 ```bat
-build_exe.bat
+pip install -r requirements.txt pyinstaller==6.11.1
+python -m PyInstaller --noconfirm AulaControl.spec
 ```
 
-Çıktı `dist\F75Kontrol.exe` olur. Bunu Başlangıç klasörüne (`Win+R` → `shell:startup`) kısayol olarak koyarsan Windows açılınca kendiliğinden başlar.
+Then open `installer\aula-control.iss` in [Inno Setup](https://jrsoftware.org/isinfo.php) to produce `Aula-Control-Setup.exe`. Or push a `v*` tag and let the Release workflow build both.
 
-## RGB ışıkları hakkında
+---
 
-AULA, klavyenin ışık ve ayar komutlarını herkese açık olarak yayınlamıyor. Bu yüzden ışık kontrolü için önce AULA yazılımının klavyeye ne gönderdiğini öğrenmek gerekiyor:
+## Features
 
-1. "Klavye (HID)" sekmesinde, AULA'ya ait ve **Üretici arayüzü** olarak işaretlenmiş satırın VID/PID değerlerini not al.
-2. [Wireshark + USBPcap](https://wiki.wireshark.org/CaptureSetup/USB) ile AULA yazılımında bir renk değiştirirken giden USB paketlerini kaydet.
-3. Aynı paketleri `hidapi` ile `f75kontrol/hid_scan.py` üzerinden gönderen bir eylem eklenebilir.
+- Battery level over the 2.4G dongle (USB-C cable alone usually reports no level)
+- 15+ lighting effects with brightness, speed and colour
+- Per-key RGB painter and presets
+- Live preview of the F75 as a rendered picture, with a **Live / Picture** switch
+- Key assignment (experimental) — changes are sent only when you press Apply
+- Dark and light themes
+- Start with Windows
+- Demo keyboard so you can try the app without hardware
 
-## Geliştirme
+---
 
-```bash
-pip install pytest
-python -m pytest -q
-```
+## Screenshots
 
-Kod yapısı:
+Run the app and open **Lighting** or **Per-key**. With no keyboard plugged in, choose **Demo keyboard** on the Start page — that is the same UI people see in the screenshots.
 
-- `f75kontrol/config.py`: ayar modeli, yükleme ve kaydetme
-- `f75kontrol/actions.py`: eylemleri doğrulama ve çalıştırma
-- `f75kontrol/engine.py`: global kısayolları ve tuş atamalarını açıp kapatma
-- `f75kontrol/hid_scan.py`: USB HID cihaz taraması
-- `f75kontrol/ui.py`: Tkinter arayüzü
+---
+
+## Troubleshooting
+
+- Close the official AULA driver. Only one program can use the keyboard at a time.
+- Lighting works over the **2.4G dongle** (best) or **USB-C cable**. Bluetooth support is limited.
+- If Windows Defender or SmartScreen blocks the download, that is because the exe is not code-signed — use **More info → Run anyway**.
+- Still stuck? Open an issue on the release and say whether you used the dongle, cable or demo.
+
+---
+
+## Protocol
+
+The app talks to the keyboard over its vendor HID channel. The packet layout and command IDs come from public reverse-engineering of AULA's Windows driver (see community write-ups for the F75). Demo mode keeps everything in memory and never opens a device.
+
+---
+
+## License
+
+MIT. Not affiliated with, endorsed by, or supported by AULA. "AULA" is used only to name the hardware this app works with.
+
+Made with the help of AI.
