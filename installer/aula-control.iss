@@ -2,7 +2,7 @@
 #define MyAppName "Aula Control"
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "Aula Control (unofficial)"
-#define MyAppURL "https://github.com/emir-bayir/f75-studio"
+#define MyAppURL "https://github.com/bayiremir/f75-studio"
 #define MyAppExeName "Aula-Control-Portable.exe"
 
 [Setup]

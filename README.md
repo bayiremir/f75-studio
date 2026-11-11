@@ -21,7 +21,7 @@ I don't even know coding, so use it at your own risk, or leave if you have any i
 
 ## Download
 
-Get **`Aula-Control-Setup.exe`** from [Releases](https://github.com/emir-bayir/f75-studio/releases) and run it. No admin needed. A portable **`Aula-Control-Portable.exe`** is there too.
+Get **`Aula-Control-Setup.exe`** from [Releases](https://github.com/bayiremir/f75-studio/releases) and run it. No admin needed. A portable **`Aula-Control-Portable.exe`** is there too.
 
 Windows may warn about an unknown publisher because the app isn't code-signed: choose **More info → Run anyway**. No keyboard? Try **Start → Use Demo keyboard**.
 
